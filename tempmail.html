@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temp Email Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .generate-section {
+            display: flex;
+            margin-bottom: 20px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .copy-btn {
+            background-color: #34a853;
+        }
+        .copy-btn:hover {
+            background-color: #2e8b57;
+        }
+        .email-display {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 18px;
+            font-weight: bold;
+            flex-grow: 1;
+            border: 1px solid #ddd;
+        }
+        .active-email {
+            margin-top: 30px;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #34a853;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .inbox-container {
+            margin-top: 30px;
+        }
+        .inbox-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .inbox-status {
+            color: #666;
+            font-style: italic;
+        }
+        .inbox-messages {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .message {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            background-color: #f8f9fa;
+        }
+        .message:last-child {
+            border-bottom: none;
+        }
+        .otp-code {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4285f4;
+            text-align: center;
+            margin: 10px 0;
+            letter-spacing: 2px;
+        }
+        .message-time {
+            color: #666;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .history-section {
+            margin-top: 30px;
+        }
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .expired {
+            color: #999;
+            text-decoration: line-through;
+        }
+        .timer {
+            color: #e74c3c;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .email-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        @media (max-width: 600px) {
+            .generate-section {
+                flex-direction: column;
+            }
+            .email-display {
+                word-break: break-all;
+            }
+        }
+        .no-messages {
+            padding: 30px;
+            text-align: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Temporary Email Generator</h1>
+        <p>Generate unique temporary emails with automatic OTP reception</p>
+    </header>
+
+    <div class="container">
+        <div class="generate-section">
+            <div class="email-display" id="current-email">No email generated yet</div>
+            <button class="copy-btn" id="copy-btn" disabled>Copy</button>
+            <button id="generate-btn">Generate New Email</button>
+        </div>
+
+        <div class="active-email">
+            <h2>Active Email</h2>
+            <p>Time remaining: <span id="timer">Not active</span></p>
+        </div>
+
+        <div class="inbox-container">
+            <div class="inbox-header">
+                <h2>Inbox</h2>
+                <div class="inbox-status" id="inbox-status">Waiting for messages...</div>
+            </div>
+            <div class="inbox-messages" id="inbox-messages">
+                <div class="no-messages">No messages received yet</div>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <h2>Email History</h2>
+            <div class="history-list" id="history-list">
+                <div class="no-messages">No emails generated yet</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">New message received!</div>
+
+    <script>
+        // Store generated emails and their state
+        const emailDB = {
+            generated: new Set(),
+            active: null,
+            history: [],
+            messages: []
+        };
+
+        // DOM Elements
+        const currentEmailDisplay = document.getElementById('current-email');
+        const copyBtn = document.getElementById('copy-btn');
+        const generateBtn = document.getElementById('generate-btn');
+        const timerDisplay = document.getElementById('timer');
+        const inboxMessages = document.getElementById('inbox-messages');
+        const inboxStatus = document.getElementById('inbox-status');
+        const historyList = document.getElementById('history-list');
+        const notification = document.getElementById('notification');
+
+        // Constants
+        const EMAIL_EXPIRY_TIME = 10 * 60 * 1000; // 10 minutes
+        const DOMAIN = 'temp.com';
+
+        // Generate a random email address
+        function generateEmail() {
+            let randomPart;
+            do {
+                // Create a random string of letters and numbers
+                const timestamp = Date.now().toString(36);
+                const random = Math.random().toString(36).substring(2, 8);
+                randomPart = timestamp + random;
+            } while (emailDB.generated.has(randomPart));
+
+            // Add to generated set to prevent duplicates
+            emailDB.generated.add(randomPart);
+            
+            return `${randomPart}@${DOMAIN}`;
+        }
+
+        // Create a new email
+        function createNewEmail() {
+            // Clear any existing timer
+            if (emailDB.activeTimer) {
+                clearInterval(emailDB.activeTimer);
+            }
+
+            // Generate new email
+            const newEmail = generateEmail();
+            const timestamp = Date.now();
+            const expiryTime = timestamp + EMAIL_EXPIRY_TIME;
+
+            // Update active email
+            emailDB.active = {
+                address: newEmail,
+                created: timestamp,
+                expires: expiryTime,
+                messages: []
+            };
+
+            // Add to history
+            emailDB.history.unshift(emailDB.active);
+
+            // Update UI
+            currentEmailDisplay.textContent = newEmail;
+            copyBtn.disabled = false;
+            
+            // Start countdown timer
+            startTimer(expiryTime);
+            
+            // Clear inbox
+            inboxMessages.innerHTML = '<div class="no-messages">No messages received yet</div>';
+            inboxStatus.textContent = 'Waiting for messages...';
+            
+            // Update history display
+            renderHistory();
+
+            // Simulate receiving messages (for demo purposes)
+            scheduleRandomMessages();
+        }
+
+        // Start timer for email expiry
+        function startTimer(expiryTime) {
+            emailDB.activeTimer = setInterval(() => {
+                const now = Date.now();
+                const timeLeft = expiryTime - now;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(emailDB.activeTimer);
+                    timerDisplay.textContent = 'Expired';
+                    currentEmailDisplay.textContent = 'No active email';
+                    copyBtn.disabled = true;
+                    emailDB.active = null;
+                    renderHistory();
+                } else {
+                    const minutes = Math.floor(timeLeft / 60000);
+                    const seconds = Math.floor((timeLeft % 60000) / 1000);
+                    timerDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                }
+            }, 1000);
+        }
+
+        // Copy email to clipboard
+        function copyEmailToClipboard() {
+            if (emailDB.active) {
+                navigator.clipboard.writeText(emailDB.active.address)
+                    .then(() => {
+                        copyBtn.textContent = 'Copied!';
+                        setTimeout(() => {
+                            copyBtn.textContent = 'Copy';
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy: ', err);
+                    });
+            }
+        }
+
+        // Generate a random OTP
+        function generateOTP() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
+        // Show notification
+        function showNotification(text) {
+            notification.textContent = text;
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        // Receive a message with OTP
+        function receiveMessage(sender, subject) {
+            if (!emailDB.active) return;
+            
+            const otp = generateOTP();
+            const timestamp = Date.now();
+            
+            const message = {
+                id: 'msg_' + timestamp,
+                sender,
+                subject,
+                otp,
+                received: timestamp,
+                read: false
+            };
+            
+            // Add message to active email
+            emailDB.active.messages.push(message);
+            
+            // Update inbox
+            renderInbox();
+            
+            // Show notification
+            showNotification('New message received!');
+        }
+
+        // Render inbox messages
+        function renderInbox() {
+            if (!emailDB.active || emailDB.active.messages.length === 0) {
+                inboxMessages.innerHTML = '<div class="no-messages">No messages received yet</div>';
+                inboxStatus.textContent = 'Waiting for messages...';
+                return;
+            }
+            
+            inboxStatus.textContent = `${emailDB.active.messages.length} message(s) received`;
+            
+            inboxMessages.innerHTML = '';
+            emailDB.active.messages.forEach(msg => {
+                const messageTime = new Date(msg.received).toLocaleTimeString();
+                
+                const messageElem = document.createElement('div');
+                messageElem.className = 'message';
+                messageElem.innerHTML = `
+                    <h3>${msg.subject}</h3>
+                    <p>From: ${msg.sender}</p>
+                    <div class="otp-code">${msg.otp}</div>
+                    <div class="message-time">Received at ${messageTime}</div>
+                `;
+                
+                inboxMessages.appendChild(messageElem);
+            });
+        }
+
+        // Render email history
+        function renderHistory() {
+            if (emailDB.history.length === 0) {
+                historyList.innerHTML = '<div class="no-messages">No emails generated yet</div>';
+                return;
+            }
+            
+            historyList.innerHTML = '';
+            const now = Date.now();
+            
+            emailDB.history.forEach(email => {
+                const isExpired = now > email.expires;
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                
+                const messageCount = email.messages ? email.messages.length : 0;
+                
+                historyItem.innerHTML = `
+                    <div class="email-info">
+                        <span class="${isExpired ? 'expired' : ''}">${email.address}</span>
+                        <span class="message-count">(${messageCount} messages)</span>
+                    </div>
+                    <div>
+                        <span>${new Date(email.created).toLocaleTimeString()}</span>
+                        ${!isExpired ? `<span class="timer">Active</span>` : ''}
+                    </div>
+                `;
+                
+                historyList.appendChild(historyItem);
+            });
+        }
+
+        // For demo purposes - simulate receiving messages
+        function scheduleRandomMessages() {
+            if (!emailDB.active) return;
+            
+            const senders = [
+                'accounts@example.com',
+                'verify@service.net',
+                'noreply@secure-login.com',
+                'otp@authentication.org',
+                'signup@platform.io'
+            ];
+            
+            const subjects = [
+                'Your Verification Code',
+                'OTP for Account Registration',
+                'Secure Login Code',
+                'Your One-Time Password',
+                'Authentication Required'
+            ];
+            
+            // Schedule 1-3 random messages
+            const messageCount = Math.floor(Math.random() * 3) + 1;
+            
+            for (let i = 0; i < messageCount; i++) {
+                const delay = (Math.random() * 20 + 5) * 1000; // 5-25 seconds
+                
+                setTimeout(() => {
+                    if (emailDB.active) {
+                        const sender = senders[Math.floor(Math.random() * senders.length)];
+                        const subject = subjects[Math.floor(Math.random() * subjects.length)];
+                        receiveMessage(sender, subject);
+                    }
+                }, delay);
+            }
+        }
+
+        // Event Listeners
+        generateBtn.addEventListener('click', createNewEmail);
+        copyBtn.addEventListener('click', copyEmailToClipboard);
+
+        // Initialize the page
+        function init() {
+            // Start with no active email
+            currentEmailDisplay.textContent = 'No email generated yet';
+            copyBtn.disabled = true;
+            timerDisplay.textContent = 'Not active';
+        }
+
+        // Initialize on page load
+        init();
+    </script>
+</body>
+</html>
